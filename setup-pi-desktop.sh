@@ -62,6 +62,7 @@ section_packages() {
     rpi-eeprom \
     chromium \
     udisks2 udiskie \
+    pipewire pipewire-pulse pipewire-alsa wireplumber alsa-utils \
     curl ca-certificates
   # xauth: startx (invoked by tuigreet's xsession-wrapper below) shells
   # out to it to set up the X session's magic-cookie auth — not optional here.
@@ -96,7 +97,22 @@ section_packages() {
   # it auto-mounts a USB drive the moment it's plugged in. The Super+u
   # dmenu picker (see the `usbmenu` script in section_dotfiles) is there for
   # manual mount/unmount/eject on top of that, mainly for safely detaching a
-  # drive before pulling it.
+  # drive before pulling it. pipewire/pipewire-pulse/pipewire-alsa/
+  # wireplumber: the sound server — a bare Raspberry Pi OS Lite install has
+  # none at all (unlike the official Desktop image, which pulls this in via
+  # its desktop metapackage), so without it apps like chromium/vlc have no
+  # audio backend to talk to and just play silently. The Pi 5 dropped the
+  # analog 3.5mm jack earlier Pi boards had — audio out is HDMI-only on
+  # this hardware (confirm with `wpctl status`: you'll see one "Built-in
+  # Audio" sink per connected HDMI display, nothing analog), so route an
+  # aux speaker through your monitor's own audio-out passthrough jack, or
+  # add a USB audio adapter/DAC if you need output the Pi drives directly.
+  # Debian's pipewire packages enable their own systemd --user socket units
+  # on install, so this needs no extra start-dwm wiring beyond the normal
+  # PAM-backed login (which greetd provides) setting up the user's
+  # systemd/D-Bus session. alsa-utils: aplay/amixer/alsamixer/speaker-test,
+  # for confirming ALSA sees your output device(s) independent of pipewire
+  # when troubleshooting.
 
   # Debian renames these two to avoid clashes; symlink the names you asked for.
   [ -e "$LOCAL_BIN/bat" ] || ln -s /usr/bin/batcat "$LOCAL_BIN/bat"
@@ -458,6 +474,13 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_u,      spawn,          {.v = usbmenu } },
 	{ 0,                             XK_Print,  spawn,          SHCMD("screenshot") },
 	{ MODKEY,                        XK_Print,  spawn,          SHCMD("screenshot select") },
+	/* F10/F11/F12: mute/down/up. wpctl's @DEFAULT_AUDIO_SINK@ always
+	 * resolves to the current default sink, so these don't need to
+	 * know which HDMI port is actually in use. -l 1.0 caps the raise
+	 * at 100% so repeated presses can't push it into distortion. */
+	{ 0,                             XK_F10,    spawn,          SHCMD("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle") },
+	{ 0,                             XK_F11,    spawn,          SHCMD("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-") },
+	{ 0,                             XK_F12,    spawn,          SHCMD("wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+") },
 /*	{ MODKEY,                       XK_b,      togglebar,      {0} },
 */	{ MODKEY,                       XK_j,      focusstack,     {.i = +1 } },
 	{ MODKEY,                       XK_k,      focusstack,     {.i = -1 } },
@@ -1068,6 +1091,7 @@ section_summary() {
    Super+u              usbmenu -> dmenu mount/unmount(+eject) for USB drives
    Print                screenshot -> full screen, saved to ~/Pictures/Screenshots + clipboard
    Super+Print          screenshot -> click-drag a region, or click a window
+   F10 / F11 / F12      mute / volume down / volume up (wpctl, capped at 100%)
    Super+Shift+f        fullscreen toggle (only if the fullscreen patch applied — check the build log above)
    idle lock            10 min via xset+xss-lock (edit the timeout in /usr/local/bin/start-dwm to change)
 
@@ -1095,6 +1119,14 @@ section_summary() {
  drive last (0xf641) — normal day-to-day boot is from NVMe; insert a
  rescue SD card or USB stick to override it. Check both after reboot with
  'cat /boot/firmware/config.txt' and 'sudo rpi-eeprom-config'.
+
+ Audio: pipewire/wireplumber installed (a bare Lite install ships no sound
+ server at all, unlike the official Desktop image). The Pi 5 has no analog
+ 3.5mm jack — audio out is HDMI-only on this board, one sink per connected
+ display. For an aux speaker, route it through your monitor's own
+ audio-out passthrough jack, or add a USB audio adapter/DAC for output the
+ Pi drives directly. Check sinks with 'wpctl status', switch the default
+ with 'wpctl set-default <id>'.
 
  Xorg: /etc/X11/xorg.conf.d/99-vc4.conf pins the vc4 display device as
  primary (fixes a Pi 5 quirk where two DRM devices exist and Xorg can pick

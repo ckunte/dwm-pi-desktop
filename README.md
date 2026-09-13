@@ -19,6 +19,10 @@ dwm/X11 "pocket desktop."
 - **NVMe (M.2 HAT+)**: enables PCIe Gen 3 on the external connector and sets
   the bootloader's `BOOT_ORDER` to SD → USB → NVMe, so a rescue SD card or USB
   stick overrides normal NVMe boot when present.
+- **Audio**: pipewire + wireplumber (a bare Lite install ships no sound
+  server at all). The Pi 5 has no analog 3.5mm jack — audio out is
+  HDMI-only on this board; route an aux speaker through your monitor's own
+  audio-out passthrough jack, or add a USB audio adapter for direct output.
 - **Xorg fix** for a Pi 5 quirk (two DRM devices, vc4 + v3d) that otherwise
   crashes X right after login with "Cannot run in framebuffer mode."
 - **Quiet boot** — kernel/systemd console spam and the firmware splash are
@@ -67,6 +71,8 @@ continue; fix it and re-run.
 | `Super+u` | usbmenu → mount/unmount/eject a USB drive |
 | `Print` | screenshot, full screen |
 | `Super+Print` | screenshot, select a region or window |
+| `F10` | mute toggle |
+| `F11` / `F12` | volume down / up (5% steps, capped at 100%) |
 | `Super+Shift+f` | fullscreen toggle (only if that patch applied) |
 | `Super+j` / `Super+k` | focus next/previous window |
 | `Super+h` / `Super+l` | shrink/grow the master area |
@@ -113,3 +119,18 @@ Idle lock is 10 minutes via `xset` + `xss-lock` — change the timeout in
   print on some boots. `systemd.show_status=0` in cmdline.txt silences that
   too, without affecting the emergency shell a genuine fsck failure or
   kernel panic still drops you into on the console.
+- No audio out of the box was the single biggest gap versus the official
+  Desktop image: a Lite install has no sound server at all (no pipewire, no
+  pulseaudio), so chromium/vlc silently have nothing to output to. This
+  script installs pipewire + wireplumber + alsa-utils to fix that. After a
+  reboot, `wpctl status` lists sinks and `wpctl set-default <id>` switches
+  the default one; `aplay -l` / `speaker-test -c2` are lower-level ALSA
+  checks if pipewire itself looks like the problem.
+- The Pi 5 dropped the analog 3.5mm jack earlier Pi boards had — `cat
+  /proc/asound/cards` on a Pi 5 shows only `vc4hdmi0`/`vc4hdmi1`, no analog
+  card, and `dtparam=audio=on` (the classic fix for that jack on older Pis)
+  is a no-op here since the codec it enables doesn't exist on this board.
+  Audio out is HDMI-only; `wpctl status` shows one sink per HDMI port that
+  actually has a display attached. For an aux speaker, route it through
+  your monitor's own audio-out passthrough jack, or add a USB audio
+  adapter/DAC if you want output the Pi drives directly.
