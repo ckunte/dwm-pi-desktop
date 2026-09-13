@@ -256,18 +256,36 @@ section_quiet_boot() {
   fi
 
   if [ -z "$cmdline" ]; then
-    warn "Couldn't find cmdline.txt — add 'quiet loglevel=0 vt.global_cursor_default=0 logo.nologo' to it manually."
+    warn "Couldn't find cmdline.txt — add 'quiet loglevel=0 vt.global_cursor_default=0 logo.nologo systemd.show_status=0' to it manually."
   elif grep -q 'loglevel=0' "$cmdline"; then
     log "Quiet-boot kernel params already set in $cmdline"
+    # Self-heal: an earlier run of this script (before systemd.show_status=0
+    # was added below) left quiet/loglevel=0 in place without it. quiet on
+    # its own only sets systemd's status output to "auto" (suppressed,
+    # until a unit takes >1.5s or hits a hiccup) — not fully off — which is
+    # exactly why routine things like the root filesystem's fsck summary
+    # ("/dev/... clean, N/M files...") still print on a re-run's first
+    # boots. Patch it in now rather than requiring cmdline.txt by hand.
+    if ! grep -q 'systemd.show_status=0' "$cmdline"; then
+      sudo sed -i 's/$/ systemd.show_status=0/' "$cmdline"
+      NEED_REBOOT=1
+      log "Patched existing $cmdline to add systemd.show_status=0 (silences systemd's own status/fsck lines)."
+    fi
   else
     # cmdline.txt must stay a single line — append to it, never write a new
     # line. quiet+loglevel=0 belt-and-suspenders silence kernel messages,
     # vt.global_cursor_default=0 hides the blinking text-console cursor,
-    # logo.nologo hides the boot-time penguin logos. Deliberately NOT
-    # removing the existing console=tty1 entry: a genuine boot failure
-    # (fsck error, kernel panic) will still show up on screen instead of
-    # leaving you staring at a black screen with no clue what's wrong.
-    sudo sed -i 's/$/ quiet loglevel=0 vt.global_cursor_default=0 logo.nologo/' "$cmdline"
+    # logo.nologo hides the boot-time penguin logos. systemd.show_status=0
+    # goes further than quiet alone: quiet only sets systemd's own status
+    # output to "auto" (still shown if a unit takes >1.5s or errors), which
+    # is why things like the routine fsck summary on the root filesystem
+    # otherwise slip through — that's systemd/fsck writing to the console
+    # directly, not something the kernel's loglevel controls. Deliberately
+    # NOT removing the existing console=tty1 entry: a genuine boot failure
+    # (fsck error, kernel panic) still drops you into an emergency shell on
+    # the console regardless of show_status, so this doesn't trade away
+    # that safety net — it only quiets the routine "everything's fine" noise.
+    sudo sed -i 's/$/ quiet loglevel=0 vt.global_cursor_default=0 logo.nologo systemd.show_status=0/' "$cmdline"
     NEED_REBOOT=1
     log "Added quiet-boot kernel params to $cmdline"
   fi
@@ -1088,7 +1106,9 @@ section_summary() {
  all in Xorg's own log file, just not flashed on screen at login.
 
  Quiet boot: kernel/systemd console output and the firmware rainbow splash
- are suppressed (cmdline.txt + config.txt) — tuigreet should be the first
+ are suppressed (cmdline.txt + config.txt), including systemd's own status
+ lines (systemd.show_status=0 — otherwise routine things like the root
+ filesystem's fsck summary still print) — tuigreet should be the first
  thing you see. console=tty1 was left in place on purpose, so a genuine
  boot failure still shows up on screen instead of a silent black screen.
 

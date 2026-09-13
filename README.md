@@ -106,3 +106,10 @@ Idle lock is 10 minutes via `xset` + `xss-lock` — change the timeout in
   above. This script suppresses it via a custom tuigreet `--xsession-wrapper`
   (`/usr/local/bin/xsession-wrapper`) that redirects Xorg's stderr; the same
   content is still available in Xorg's own log file if you ever need it.
+- `quiet loglevel=0` on its own only sets systemd's status output to "auto"
+  (suppressed until a unit takes more than ~1.5s or errors) — it doesn't
+  turn it off outright, which is why routine things like the root
+  filesystem's fsck summary ("`/dev/... clean, N/M files...`") can still
+  print on some boots. `systemd.show_status=0` in cmdline.txt silences that
+  too, without affecting the emergency shell a genuine fsck failure or
+  kernel panic still drops you into on the console.
