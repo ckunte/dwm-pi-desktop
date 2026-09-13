@@ -12,6 +12,13 @@
 # Run as your normal user (NOT root/sudo) — it calls sudo internally only
 # where needed. Safe to re-run: every section checks whether its target
 # already exists before doing anything.
+#
+# Pass --upgrade to instead refresh already-installed software: suckless
+# tools are reset to latest upstream and their patches reapplied (your
+# config.h is untouched either way), uv-managed tools and typst are
+# updated to their latest release, and vim-plug runs :PlugUpdate. Without
+# --upgrade, all of that is left alone once installed — a plain re-run
+# only ever fixes/completes configuration, never churns working software.
 
 set -euo pipefail
 
@@ -19,6 +26,17 @@ SRC_DIR="$HOME/src"
 LOCAL_BIN="$HOME/.local/bin"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NEED_REBOOT=0
+
+UPGRADE=0
+for arg in "$@"; do
+  case "$arg" in
+    --upgrade) UPGRADE=1 ;;
+    *)
+      echo "Unknown argument: $arg (only --upgrade is supported)" >&2
+      exit 1
+      ;;
+  esac
+done
 
 log()  { printf '\n==> %s\n' "$1"; }
 warn() { printf '\n!!  %s\n' "$1" >&2; }
@@ -259,14 +277,28 @@ section_quiet_boot() {
 }
 
 # ---------------------------------------------------------------------------
-# clone_or_update <url> <dir>: clones only if missing. Never git-pulls on a
-# rerun — source patches are applied to a fresh clone, and a pull would
-# conflict with those local changes. Delete the dir yourself to re-clone.
+# clone_or_update <url> <dir>: clones if missing. On a plain run, leaves
+# an existing clone untouched — a pull would conflict with the patches
+# applied to it. Under --upgrade, resets to the latest upstream commit
+# instead (config.h, being untracked, survives either way), so patches can
+# be reapplied fresh. Sets CLONE_OR_UPDATE_FRESH=1 when the tree just
+# became pristine (new clone, or an --upgrade reset), 0 if left alone.
 clone_or_update() {
+  CLONE_OR_UPDATE_FRESH=0
   if [ -d "$2" ]; then
-    log "$(basename "$2") source already present, leaving as-is"
+    if [ "$UPGRADE" -eq 1 ]; then
+      log "$(basename "$2"): fetching latest upstream"
+      if (cd "$2" && git fetch --depth 1 origin HEAD && git reset --hard FETCH_HEAD); then
+        CLONE_OR_UPDATE_FRESH=1
+      else
+        warn "Couldn't fetch latest $(basename "$2") — leaving the existing source as-is."
+      fi
+    else
+      log "$(basename "$2") source already present, leaving as-is"
+    fi
   else
     git clone --depth 1 "$1" "$2"
+    CLONE_OR_UPDATE_FRESH=1
   fi
 }
 
@@ -312,10 +344,11 @@ section_suckless() {
   local dwm_fullscreen_applied="no"
 
   # --- dwm: pertag + fullscreen patches, then customized config.h ---
-  # Patches only ever touch a freshly-cloned tree, before config.h exists,
-  # so a failed/skipped patch never leaves a half-patched build.
+  # Patches only ever touch a pristine tree (fresh clone, or an --upgrade
+  # reset) — never one with config.h already generated on top of it — so a
+  # failed/skipped patch never leaves a half-patched build.
   clone_or_update https://git.suckless.org/dwm "$SRC_DIR/dwm"
-  if [ ! -f "$SRC_DIR/dwm/config.h" ]; then
+  if [ "$CLONE_OR_UPDATE_FRESH" -eq 1 ]; then
     try_patch "$SRC_DIR/dwm" \
       "https://dwm.suckless.org/patches/pertag/dwm-pertag-20200914-61bb8b2.diff" \
       "dwm pertag" || true
@@ -465,10 +498,12 @@ EOF
 
   # --- dmenu: fuzzymatch patch, then customized config.h ---
   clone_or_update https://git.suckless.org/dmenu "$SRC_DIR/dmenu"
-  if [ ! -f "$SRC_DIR/dmenu/config.h" ]; then
+  if [ "$CLONE_OR_UPDATE_FRESH" -eq 1 ]; then
     try_patch "$SRC_DIR/dmenu" \
       "https://tools.suckless.org/dmenu/patches/fuzzymatch/dmenu-fuzzymatch-5.3.diff" \
       "dmenu fuzzymatch" || true
+  fi
+  if [ ! -f "$SRC_DIR/dmenu/config.h" ]; then
     cat > "$SRC_DIR/dmenu/config.h" <<'EOF'
 /* See LICENSE file for copyright and license details. */
 /* Default settings; can be overriden by command line. */
@@ -500,7 +535,7 @@ EOF
 
   # --- slock: message patch, then vanilla auto-generated config.h ---
   clone_or_update https://git.suckless.org/slock "$SRC_DIR/slock"
-  if [ ! -f "$SRC_DIR/slock/config.h" ]; then
+  if [ "$CLONE_OR_UPDATE_FRESH" -eq 1 ]; then
     try_patch "$SRC_DIR/slock" \
       "https://tools.suckless.org/slock/patches/message/slock-message-20191002-b46028b.diff" \
       "slock message" || true
@@ -509,7 +544,7 @@ EOF
 
   # --- st: scrollback patches, then config.h with font/shell tweaks ---
   clone_or_update https://git.suckless.org/st "$SRC_DIR/st"
-  if [ ! -f "$SRC_DIR/st/config.h" ]; then
+  if [ "$CLONE_OR_UPDATE_FRESH" -eq 1 ]; then
     if try_patch "$SRC_DIR/st" \
       "https://st.suckless.org/patches/scrollback/st-scrollback-0.9.2.diff" \
       "st scrollback"; then
@@ -517,6 +552,8 @@ EOF
         "https://st.suckless.org/patches/scrollback/st-scrollback-mouse-0.9.2.diff" \
         "st scrollback-mouse" || true
     fi
+  fi
+  if [ ! -f "$SRC_DIR/st/config.h" ]; then
     cp "$SRC_DIR/st/config.def.h" "$SRC_DIR/st/config.h"
     sed -i 's#^static char \*font = .*#static char *font = "Cascadia Code:size=14:antialias=true:autohint=true";#' "$SRC_DIR/st/config.h"
     # `shell` is st's last-resort fallback (after -e, $SHELL, /etc/passwd)
@@ -798,14 +835,20 @@ section_python_tools() {
     curl -LsSf https://astral.sh/uv/install.sh | sh
   fi
   export PATH="$LOCAL_BIN:$PATH"
-  uv tool install ruff --quiet || warn "ruff install via uv failed — retry manually with 'uv tool install ruff'"
+  if [ "$UPGRADE" -eq 1 ] && uv tool list 2>/dev/null | grep -q '^ruff '; then
+    uv tool upgrade ruff --quiet || warn "ruff upgrade via uv failed — retry manually with 'uv tool upgrade ruff'"
+  else
+    uv tool install ruff --quiet || warn "ruff install via uv failed — retry manually with 'uv tool install ruff'"
+  fi
 }
 
 # ---------------------------------------------------------------------------
 # install_github_release_binary <owner/repo> <asset-substring> <binary-name>
+# Under --upgrade, always re-fetches the latest release and overwrites
+# whatever's on $LOCAL_BIN — otherwise skips if already installed.
 install_github_release_binary() {
   local repo="$1" pattern="$2" binname="$3"
-  if command -v "$binname" >/dev/null 2>&1 || [ -x "$LOCAL_BIN/$binname" ]; then
+  if [ "$UPGRADE" -ne 1 ] && { command -v "$binname" >/dev/null 2>&1 || [ -x "$LOCAL_BIN/$binname" ]; }; then
     log "$binname already installed"
     return
   fi
@@ -880,6 +923,10 @@ EOF
   fi
 
   nvim --headless "+PlugInstall --sync" +qa || warn "PlugInstall had trouble — run ':PlugInstall' manually inside nvim."
+
+  if [ "$UPGRADE" -eq 1 ]; then
+    nvim --headless "+PlugUpdate --sync" +qa || warn "PlugUpdate had trouble — run ':PlugUpdate' manually inside nvim."
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -980,6 +1027,11 @@ section_summary() {
  under /media/$USER/<LABEL>) — no dwm involvement needed, plug and go.
  Super+u opens a dmenu picker to mount something manually, or to unmount +
  power-off a drive before you physically pull it.
+
+ Upgrading: this run only installed/configured what was missing. To
+ refresh already-installed software (suckless tools rebuilt against
+ latest upstream with patches reapplied, uv-managed tools, typst, vim-plug
+ plugins) instead, run: ./setup-pi-desktop.sh --upgrade
 
  Still manual, on purpose (see PLAN.md):
    - gpg --full-generate-key   then   pass init <key-id>
