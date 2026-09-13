@@ -420,6 +420,7 @@ static const char *browser[]  = { "chromium", "--no-first-run", "--no-default-br
 static const char *lockcmd[]  = { "slock", NULL };
 static const char *imgview[]  = { "imgview", NULL };
 static const char *usbmenu[]  = { "usbmenu", NULL };
+static const char *radiomenu[] = { "radiomenu", NULL };
 
 static const Key keys[] = {
 	/* modifier                     key        function        argument */
@@ -429,6 +430,7 @@ static const Key keys[] = {
 	{ MODKEY|ControlMask,           XK_l,      spawn,          {.v = lockcmd } },
 	{ MODKEY,                       XK_v,      spawn,          {.v = imgview } },
 	{ MODKEY,                       XK_u,      spawn,          {.v = usbmenu } },
+	{ MODKEY,                       XK_r,      spawn,          {.v = radiomenu } },
 	{ 0,                             XK_Print,  spawn,          SHCMD("screenshot") },
 	{ MODKEY,                        XK_Print,  spawn,          SHCMD("screenshot select") },
 	/* F10/F11/F12: mute/down/up. -l 1.0 caps the raise at 100%. */
@@ -493,6 +495,12 @@ EOF
   if [ -f "$SRC_DIR/dwm/config.h" ] && ! grep -q 'refreshrate' "$SRC_DIR/dwm/config.h"; then
     echo 'static const int refreshrate = 120; /* added by setup-pi-desktop.sh: dwm.c has required this since Aug 2025 */' >> "$SRC_DIR/dwm/config.h"
     log "Patched existing dwm/config.h to add the now-required refreshrate declaration."
+  fi
+  # Self-heal an older config.h from before the Super+r radio keybind.
+  if [ -f "$SRC_DIR/dwm/config.h" ] && ! grep -q 'radiomenu' "$SRC_DIR/dwm/config.h"; then
+    sed -i '/static const char \*usbmenu\[\]/a static const char *radiomenu[] = { "radiomenu", NULL };' "$SRC_DIR/dwm/config.h"
+    sed -i '/XK_u,      spawn,          {.v = usbmenu } },/a\	{ MODKEY,                       XK_r,      spawn,          {.v = radiomenu } },' "$SRC_DIR/dwm/config.h"
+    log "Patched existing dwm/config.h to add the Super+r radio-station keybinding."
   fi
   build_and_install "$SRC_DIR/dwm" || true
 
@@ -700,6 +708,49 @@ mount)
 esac
 EOF
   chmod +x "$LOCAL_BIN/usbmenu"
+
+  log "radio: dmenu station picker (Super+r)"
+  # Station list lives outside $LOCAL_BIN, in ~/.config -- created once
+  # with these defaults, then left alone so it's yours to edit freely.
+  mkdir -p "$HOME/.config/radiomenu"
+  if [ ! -f "$HOME/.config/radiomenu/stations" ]; then
+    cat > "$HOME/.config/radiomenu/stations" <<'EOF'
+Antenne Vorarlberg|http://web.radio.antennevorarlberg.at/av-2000er/stream/mp3?aggregator=icecastdirectory
+Radio Zwickau|http://web.radio.radiozwickau.de/radiozwickau-tophits/stream/mp3?aggregator=icecastdirectory
+Kathy Radio|http://kathy.torontocast.com:2980/stream
+EOF
+    log "Installed default radio station list to ~/.config/radiomenu/stations (edit freely, one 'Name|URL' per line)"
+  fi
+
+  cat > "$LOCAL_BIN/radiomenu" <<'EOF'
+#!/bin/sh
+# dwm keybind (Super+r): dmenu-driven internet radio station picker.
+# Reads ~/.config/radiomenu/stations ("Name|URL" per line, edit freely --
+# only created once, never overwritten). Only one station plays at a
+# time: picking one stops whatever cvlc is already running.
+set -eu
+STATIONS="$HOME/.config/radiomenu/stations"
+
+if [ ! -s "$STATIONS" ]; then
+	printf 'No stations configured (~/.config/radiomenu/stations)' | dmenu -p "Radio:"
+	exit 0
+fi
+
+choice=$(cut -d'|' -f1 "$STATIONS" | { cat; echo Stop; } | dmenu -i -p "Radio:")
+[ -z "$choice" ] && exit 0
+
+# cvlc is a symlink to vlc on some setups, a wrapper script on others --
+# either way its own exec'd process shows up as one of these two names.
+pkill -x vlc >/dev/null 2>&1 || true
+pkill -x cvlc >/dev/null 2>&1 || true
+[ "$choice" = "Stop" ] && exit 0
+
+url=$(awk -F'|' -v name="$choice" '$1==name{print $2; exit}' "$STATIONS")
+[ -z "$url" ] && exit 0
+
+cvlc "$url" >/dev/null 2>&1 &
+EOF
+  chmod +x "$LOCAL_BIN/radiomenu"
 
   log "pdf: zathura set as the default PDF reader"
   if command -v xdg-mime >/dev/null 2>&1; then
@@ -964,6 +1015,7 @@ section_summary() {
    Super+Ctrl+l         slock (manual lock)
    Super+v              imgview -> nsxiv, thumbnails ~/Pictures (t to toggle grid)
    Super+u              usbmenu -> dmenu mount/unmount(+eject) for USB drives
+   Super+r              radiomenu -> dmenu internet radio picker (~/.config/radiomenu/stations)
    Print                screenshot -> full screen, saved to ~/Pictures/Screenshots + clipboard
    Super+Print          screenshot -> click-drag a region, or click a window
    F10 / F11 / F12      mute / volume down / volume up (wpctl, capped at 100%)
