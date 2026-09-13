@@ -71,6 +71,8 @@ continue; fix it and re-run.
 | `Super+u` | usbmenu → mount/unmount/eject a USB drive |
 | `Print` | screenshot, full screen |
 | `Super+Print` | screenshot, select a region or window |
+| `F10` | mute toggle |
+| `F11` / `F12` | volume down / up (5% steps, capped at 100%) |
 | `Super+Shift+f` | fullscreen toggle (only if that patch applied) |
 | `Super+j` / `Super+k` | focus next/previous window |
 | `Super+h` / `Super+l` | shrink/grow the master area |

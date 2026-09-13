@@ -474,6 +474,13 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_u,      spawn,          {.v = usbmenu } },
 	{ 0,                             XK_Print,  spawn,          SHCMD("screenshot") },
 	{ MODKEY,                        XK_Print,  spawn,          SHCMD("screenshot select") },
+	/* F10/F11/F12: mute/down/up. wpctl's @DEFAULT_AUDIO_SINK@ always
+	 * resolves to the current default sink, so these don't need to
+	 * know which HDMI port is actually in use. -l 1.0 caps the raise
+	 * at 100% so repeated presses can't push it into distortion. */
+	{ 0,                             XK_F10,    spawn,          SHCMD("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle") },
+	{ 0,                             XK_F11,    spawn,          SHCMD("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-") },
+	{ 0,                             XK_F12,    spawn,          SHCMD("wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+") },
 /*	{ MODKEY,                       XK_b,      togglebar,      {0} },
 */	{ MODKEY,                       XK_j,      focusstack,     {.i = +1 } },
 	{ MODKEY,                       XK_k,      focusstack,     {.i = -1 } },
@@ -1084,6 +1091,7 @@ section_summary() {
    Super+u              usbmenu -> dmenu mount/unmount(+eject) for USB drives
    Print                screenshot -> full screen, saved to ~/Pictures/Screenshots + clipboard
    Super+Print          screenshot -> click-drag a region, or click a window
+   F10 / F11 / F12      mute / volume down / volume up (wpctl, capped at 100%)
    Super+Shift+f        fullscreen toggle (only if the fullscreen patch applied — check the build log above)
    idle lock            10 min via xset+xss-lock (edit the timeout in /usr/local/bin/start-dwm to change)
 
