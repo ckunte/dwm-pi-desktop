@@ -27,6 +27,9 @@ dwm/X11 "pocket desktop."
   server at all). The Pi 5 has no analog 3.5mm jack — audio out is
   HDMI-only on this board; route an aux speaker through your monitor's own
   audio-out passthrough jack, or add a USB audio adapter for direct output.
+- **Internet radio**: `Super+r` dmenu-picks a station from
+  `~/.config/radiomenu/stations` (`Name|URL` per line, yours to edit) and
+  plays it with `cvlc`, stopping whatever was already playing first.
 - **Xorg fix** for a Pi 5 quirk (two DRM devices, vc4 + v3d) that otherwise
   crashes X right after login with "Cannot run in framebuffer mode."
 - **Quiet boot** — kernel/systemd console spam and the firmware splash are
@@ -93,6 +96,7 @@ first-time install.
 | `Super+Ctrl+l` | slock (manual lock) |
 | `Super+v` | imgview → nsxiv thumbnails, `~/Pictures` |
 | `Super+u` | usbmenu → mount/unmount/eject a USB drive |
+| `Super+r` | radiomenu → pick/stop an internet radio station |
 | `Print` | screenshot, full screen |
 | `Super+Print` | screenshot, select a region or window |
 | `F10` | mute toggle |
