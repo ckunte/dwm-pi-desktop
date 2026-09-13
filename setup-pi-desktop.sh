@@ -210,14 +210,20 @@ section_boot_order() {
   fi
 
   local tmp
-  tmp=$(mktemp)
+  # Root, not us, needs to read and write this file (--out/--apply below
+  # both run via sudo) -- created via plain mktemp, it'd be owned by us,
+  # and Debian's default fs.protected_regular=2 hardening then blocks even
+  # root from opening a non-root-owned file for writing inside a sticky
+  # world-writable directory like /tmp. Creating it via sudo up front
+  # keeps owner and opener the same the whole way through.
+  tmp=$(sudo mktemp)
   if ! sudo rpi-eeprom-config --out "$tmp"; then
     warn "Couldn't read the current EEPROM config — skipping boot-order setup. Set it yourself with 'sudo -E rpi-eeprom-config --edit' (BOOT_ORDER=0xf641)."
     sudo rm -f "$tmp"
     return
   fi
 
-  if grep -q '^BOOT_ORDER=' "$tmp"; then
+  if sudo grep -q '^BOOT_ORDER=' "$tmp"; then
     sudo sed -i "s/^BOOT_ORDER=.*/BOOT_ORDER=$wanted/" "$tmp"
   else
     echo "BOOT_ORDER=$wanted" | sudo tee -a "$tmp" >/dev/null
