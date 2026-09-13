@@ -8,8 +8,8 @@
 # (bound to Super+b), plus the CLI toolset requested alongside it. External
 # USB drives auto-mount via udiskie, with a Super+u dmenu picker for manual
 # mount/unmount. Also enables PCIe Gen 3 for the NVMe HAT (section_firmware)
-# and sets the bootloader's boot order to SD card, then USB, then NVMe
-# (section_boot_order).
+# and sets the bootloader's boot order to SD card, then USB, then NVMe, with
+# its own pre-Linux diagnostics screen silenced (section_boot_order).
 #
 # Run as your normal user (NOT root/sudo) — it calls sudo internally only
 # where needed. Safe to re-run: every section checks whether its target
@@ -192,20 +192,26 @@ section_boot_order() {
   # tried, in order: 1=SD card, 4=USB-MSD, 6=NVMe, f=restart the sequence
   # if nothing bootable was found. So 0xf641, read right to left, is
   # 1 (SD) -> 4 (USB) -> 6 (NVMe) -> f (restart): SD, then USB, then NVMe.
+  #
+  # BOOT_ORDER alone only decides *which device* gets picked — it doesn't
+  # touch the bootloader's own "Configure this Raspberry Pi" boot-progress
+  # screen, which draws to HDMI before Linux even starts and is controlled
+  # by a separate field, DISABLE_HDMI, set below in the same pass.
   if ! command -v rpi-eeprom-config >/dev/null 2>&1; then
-    warn "rpi-eeprom-config not found (rpi-eeprom package missing?) — skipping boot-order setup. Install rpi-eeprom and re-run, or set it yourself with 'sudo -E rpi-eeprom-config --edit' (BOOT_ORDER=0xf641)."
+    warn "rpi-eeprom-config not found (rpi-eeprom package missing?) — skipping boot-order setup. Install rpi-eeprom and re-run, or set it yourself with 'sudo -E rpi-eeprom-config --edit' (BOOT_ORDER=0xf641, DISABLE_HDMI=1)."
     return
   fi
 
-  local wanted="0xf641"
-  local current=""
+  local wanted_order="0xf641" wanted_hdmi="1"
+  local current_order="" current_hdmi=""
   # `|| true`: same pipefail hazard as install_github_release_binary above —
-  # sed finding no BOOT_ORDER= line (shouldn't happen, but be defensive)
-  # would otherwise abort the whole script under set -e.
-  current=$(sudo rpi-eeprom-config 2>/dev/null | sed -n 's/^BOOT_ORDER=//p' | tr -d '[:space:]') || true
+  # sed finding no matching line (shouldn't happen, but be defensive) would
+  # otherwise abort the whole script under set -e.
+  current_order=$(sudo rpi-eeprom-config 2>/dev/null | sed -n 's/^BOOT_ORDER=//p' | tr -d '[:space:]') || true
+  current_hdmi=$(sudo rpi-eeprom-config 2>/dev/null | sed -n 's/^DISABLE_HDMI=//p' | tr -d '[:space:]') || true
 
-  if [ "$current" = "$wanted" ]; then
-    log "Boot order is already $wanted (SD, USB, NVMe)"
+  if [ "$current_order" = "$wanted_order" ] && [ "$current_hdmi" = "$wanted_hdmi" ]; then
+    log "Boot order ($wanted_order) and silenced boot-diagnostics screen (DISABLE_HDMI=$wanted_hdmi) already set"
     return
   fi
 
@@ -218,22 +224,36 @@ section_boot_order() {
   # keeps owner and opener the same the whole way through.
   tmp=$(sudo mktemp)
   if ! sudo rpi-eeprom-config --out "$tmp"; then
-    warn "Couldn't read the current EEPROM config — skipping boot-order setup. Set it yourself with 'sudo -E rpi-eeprom-config --edit' (BOOT_ORDER=0xf641)."
+    warn "Couldn't read the current EEPROM config — skipping boot-order/DISABLE_HDMI setup. Set it yourself with 'sudo -E rpi-eeprom-config --edit' (BOOT_ORDER=0xf641, DISABLE_HDMI=1)."
     sudo rm -f "$tmp"
     return
   fi
 
   if sudo grep -q '^BOOT_ORDER=' "$tmp"; then
-    sudo sed -i "s/^BOOT_ORDER=.*/BOOT_ORDER=$wanted/" "$tmp"
+    sudo sed -i "s/^BOOT_ORDER=.*/BOOT_ORDER=$wanted_order/" "$tmp"
   else
-    echo "BOOT_ORDER=$wanted" | sudo tee -a "$tmp" >/dev/null
+    echo "BOOT_ORDER=$wanted_order" | sudo tee -a "$tmp" >/dev/null
+  fi
+
+  # DISABLE_HDMI=1 silences the "Configure this Raspberry Pi"/boot-progress
+  # screen the bootloader itself draws to HDMI, before Linux starts — has
+  # no effect on which device actually gets booted (BOOT_ORDER above
+  # already handles that correctly on its own; this is purely cosmetic).
+  # Tradeoff: that same screen's "Press ESC for diagnostics" recovery
+  # option needs the same HDMI path, so it becomes unreachable too — if
+  # every configured boot device ever fails, you get a blank screen
+  # instead of that fallback, rather than a way to debug it on-screen.
+  if sudo grep -q '^DISABLE_HDMI=' "$tmp"; then
+    sudo sed -i "s/^DISABLE_HDMI=.*/DISABLE_HDMI=$wanted_hdmi/" "$tmp"
+  else
+    echo "DISABLE_HDMI=$wanted_hdmi" | sudo tee -a "$tmp" >/dev/null
   fi
 
   if sudo rpi-eeprom-config --apply "$tmp"; then
     NEED_REBOOT=1
-    log "Boot order set to $wanted (SD, USB, NVMe) — takes effect after reboot"
+    log "Boot order set to $wanted_order (SD, USB, NVMe) and DISABLE_HDMI=$wanted_hdmi set — takes effect after reboot"
   else
-    warn "Failed to apply the new boot order — check the 'rpi-eeprom-config --apply' output above and set it yourself with 'sudo -E rpi-eeprom-config --edit' (BOOT_ORDER=0xf641)."
+    warn "Failed to apply the new boot order/DISABLE_HDMI — check the 'rpi-eeprom-config --apply' output above and set it yourself with 'sudo -E rpi-eeprom-config --edit' (BOOT_ORDER=0xf641, DISABLE_HDMI=1)."
   fi
   sudo rm -f "$tmp"
 }
@@ -1123,7 +1143,10 @@ section_summary() {
  NVMe (official M.2 HAT+): PCIe enabled at Gen 3 in config.txt, and the
  bootloader's BOOT_ORDER set to try the SD card, then USB, then the NVMe
  drive last (0xf641) — normal day-to-day boot is from NVMe; insert a
- rescue SD card or USB stick to override it. Check both after reboot with
+ rescue SD card or USB stick to override it. The bootloader's own
+ "Configure this Raspberry Pi" boot-progress screen is also silenced
+ (DISABLE_HDMI=1) — it only draws that screen to HDMI, so nothing here
+ changes which device actually boots. Check all three after reboot with
  'cat /boot/firmware/config.txt' and 'sudo rpi-eeprom-config'.
 
  Audio: pipewire/wireplumber installed (a bare Lite install ships no sound

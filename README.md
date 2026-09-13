@@ -18,7 +18,10 @@ dwm/X11 "pocket desktop."
   mount/unmount/eject.
 - **NVMe (M.2 HAT+)**: enables PCIe Gen 3 on the external connector and sets
   the bootloader's `BOOT_ORDER` to SD → USB → NVMe, so a rescue SD card or USB
-  stick overrides normal NVMe boot when present.
+  stick overrides normal NVMe boot when present. Also sets `DISABLE_HDMI=1`
+  so the bootloader's own pre-Linux "Configure this Raspberry Pi"
+  boot-progress screen doesn't show up — purely cosmetic, no effect on
+  which device actually boots.
 - **Audio**: pipewire + wireplumber (a bare Lite install ships no sound
   server at all). The Pi 5 has no analog 3.5mm jack — audio out is
   HDMI-only on this board; route an aux speaker through your monitor's own
@@ -93,6 +96,11 @@ Idle lock is 10 minutes via `xset` + `xss-lock` — change the timeout in
 
 ## Notes / gotchas
 
+- `DISABLE_HDMI=1` silences the bootloader's own boot-progress screen, but
+  that screen's "Press ESC to go to diagnostics screen" recovery option
+  relies on the same HDMI path — so it goes away too. If every configured
+  boot device (SD, USB, NVMe) ever fails, you get a blank screen instead
+  of that on-screen fallback, not a way to debug it visually.
 - The Pi 5's official M.2 HAT+ isn't certified for PCIe Gen 3. If the NVMe
   drive looks flaky after running this, drop `dtparam=pciex1_gen=3` to `=2`
   (or delete the line) in `/boot/firmware/config.txt` rather than assuming
