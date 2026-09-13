@@ -23,8 +23,6 @@ dwm/X11 "pocket desktop."
   server at all). The Pi 5 has no analog 3.5mm jack — audio out is
   HDMI-only on this board; route an aux speaker through your monitor's own
   audio-out passthrough jack, or add a USB audio adapter for direct output.
-  `F10`/`F11`/`F12` mute/adjust volume via `wpctl`, shown live in the
-  slstatus bar.
 - **Xorg fix** for a Pi 5 quirk (two DRM devices, vc4 + v3d) that otherwise
   crashes X right after login with "Cannot run in framebuffer mode."
 - **Quiet boot** — kernel/systemd console spam and the firmware splash are
