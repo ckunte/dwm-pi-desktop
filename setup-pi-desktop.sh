@@ -620,7 +620,7 @@ EOF
   fi
   build_and_install "$SRC_DIR/st" || true
 
-  # --- slstatus (customized config.h: date/time only, e.g. "Thu Jul 9 20:20") ---
+  # --- slstatus (customized config.h: volume + date/time, e.g. "40% Thu Jul 9 20:20") ---
   clone_or_update https://git.suckless.org/slstatus "$SRC_DIR/slstatus"
   if [ ! -f "$SRC_DIR/slstatus/config.h" ]; then
     cat > "$SRC_DIR/slstatus/config.h" <<'EOF'
@@ -635,9 +635,18 @@ static const char unknown_str[] = "n/a";
 
 static const struct arg args[] = {
 	/* function format          argument */
+	{ run_command, " %s ",     "volstatus" },
 	{ datetime,     "%s",       " %a %b %-d %H:%M " },
 };
 EOF
+  fi
+  # Self-heal: an earlier run of this script built slstatus before the
+  # volstatus (F10/F11/F12 volume) keybinds existed, so its config.h has no
+  # volume indicator. Insert one rather than requiring a manual edit or a
+  # full ~/src/slstatus delete.
+  if [ -f "$SRC_DIR/slstatus/config.h" ] && ! grep -q 'volstatus' "$SRC_DIR/slstatus/config.h"; then
+    sed -i 's/^static const struct arg args\[\] = {$/&\n\t{ run_command, " %s ",     "volstatus" },/' "$SRC_DIR/slstatus/config.h"
+    log "Patched existing slstatus/config.h to add the volume indicator."
   fi
   build_and_install "$SRC_DIR/slstatus" || true
 }
@@ -770,6 +779,20 @@ mount)
 esac
 EOF
   chmod +x "$LOCAL_BIN/usbmenu"
+
+  cat > "$LOCAL_BIN/volstatus" <<'EOF'
+#!/bin/sh
+# slstatus run_command (see the slstatus config.h in section_suckless):
+# prints the current volume/mute state for the dwm bar. @DEFAULT_AUDIO_SINK@
+# always resolves to whichever sink is current default, so this doesn't
+# need to know which HDMI port is actually in use.
+vol=$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null) || { printf 'n/a'; exit 0; }
+case "$vol" in
+	*MUTED*) printf 'mute' ;;
+	*) printf '%s' "$vol" | awk '{printf "%d%%", $2 * 100}' ;;
+esac
+EOF
+  chmod +x "$LOCAL_BIN/volstatus"
 
   log "pdf: zathura set as the default PDF reader"
   # xdg-mime just writes an entry into ~/.config/mimeapps.list -- safe to
@@ -1099,6 +1122,11 @@ section_summary() {
  ones actually applied (pertag, fullscreen, fuzzymatch, scrollback,
  scrollback-mouse, message). Any that failed were skipped safely; you're
  running vanilla suckless for those, not a broken build.
+
+ Status bar (slstatus): shows volume then date/time, e.g. "40% Thu Jul 9
+ 20:20" ("mute" when muted). The volume field comes from the volstatus
+ wrapper (wpctl) run via slstatus's run_command, so it always tracks
+ whatever the F10/F11/F12 keybinds just changed.
 
  Fonts: dwm/dmenu bar = Cascadia Code, st = Cascadia Code.
 
