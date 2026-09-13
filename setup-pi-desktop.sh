@@ -101,10 +101,15 @@ section_packages() {
   # wireplumber: the sound server — a bare Raspberry Pi OS Lite install has
   # none at all (unlike the official Desktop image, which pulls this in via
   # its desktop metapackage), so without it apps like chromium/vlc have no
-  # audio backend to talk to and just play silently, on HDMI or the 3.5mm
-  # jack alike. Debian's pipewire packages enable their own systemd --user
-  # socket units on install, so this needs no extra start-dwm wiring beyond
-  # a normal PAM-backed login (which greetd provides) setting up the user's
+  # audio backend to talk to and just play silently. The Pi 5 dropped the
+  # analog 3.5mm jack earlier Pi boards had — audio out is HDMI-only on
+  # this hardware (confirm with `wpctl status`: you'll see one "Built-in
+  # Audio" sink per connected HDMI display, nothing analog), so route an
+  # aux speaker through your monitor's own audio-out passthrough jack, or
+  # add a USB audio adapter/DAC if you need output the Pi drives directly.
+  # Debian's pipewire packages enable their own systemd --user socket units
+  # on install, so this needs no extra start-dwm wiring beyond the normal
+  # PAM-backed login (which greetd provides) setting up the user's
   # systemd/D-Bus session. alsa-utils: aplay/amixer/alsamixer/speaker-test,
   # for confirming ALSA sees your output device(s) independent of pipewire
   # when troubleshooting.
@@ -139,24 +144,6 @@ section_firmware() {
     sudo sed -i 's/^allowed_users=.*/allowed_users=anybody/' /etc/X11/Xwrapper.config
     grep -q '^needs_root_rights' /etc/X11/Xwrapper.config || \
       echo 'needs_root_rights=yes' | sudo tee -a /etc/X11/Xwrapper.config >/dev/null
-  fi
-
-  log "firmware: checking the analog audio jack (dtparam=audio=on) is enabled"
-  # dtparam=audio=on enables the Pi's onboard audio codec that feeds the
-  # 3.5mm jack (an aux speaker plugged in there needs this) — separate from
-  # HDMI audio to a monitor, which rides on vc4-kms-v3d above and needs no
-  # extra flag. Normally on by default on Raspberry Pi OS images, so this
-  # is just belt-and-suspenders in case it was ever turned off by hand.
-  if grep -q '^dtparam=audio=on$' "$cfg"; then
-    log "Analog audio jack already enabled in $cfg"
-  elif grep -q '^dtparam=audio=' "$cfg"; then
-    sudo sed -i 's/^dtparam=audio=.*/dtparam=audio=on/' "$cfg"
-    NEED_REBOOT=1
-    log "Enabled the analog audio jack in $cfg"
-  else
-    echo 'dtparam=audio=on' | sudo tee -a "$cfg" >/dev/null
-    NEED_REBOOT=1
-    log "Enabled the analog audio jack in $cfg"
   fi
 
   log "firmware: enabling PCIe Gen 3 for the NVMe M.2 HAT+"
@@ -1126,11 +1113,12 @@ section_summary() {
  'cat /boot/firmware/config.txt' and 'sudo rpi-eeprom-config'.
 
  Audio: pipewire/wireplumber installed (a bare Lite install ships no sound
- server at all, unlike the official Desktop image) and the analog jack
- enabled (dtparam=audio=on) for an aux speaker, alongside HDMI audio to a
- monitor. After rebooting, check output devices with 'wpctl status' or
- 'aplay -l', and switch the default sink with 'wpctl set-default <id>' if
- sound comes out the wrong one.
+ server at all, unlike the official Desktop image). The Pi 5 has no analog
+ 3.5mm jack — audio out is HDMI-only on this board, one sink per connected
+ display. For an aux speaker, route it through your monitor's own
+ audio-out passthrough jack, or add a USB audio adapter/DAC for output the
+ Pi drives directly. Check sinks with 'wpctl status', switch the default
+ with 'wpctl set-default <id>'.
 
  Xorg: /etc/X11/xorg.conf.d/99-vc4.conf pins the vc4 display device as
  primary (fixes a Pi 5 quirk where two DRM devices exist and Xorg can pick
