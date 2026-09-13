@@ -100,3 +100,9 @@ Idle lock is 10 minutes via `xset` + `xss-lock` — change the timeout in
   choice, not a suckless-purity one.
 - Check firmware/boot changes after reboot with `cat /boot/firmware/config.txt`
   and `sudo rpi-eeprom-config`.
+- Xorg prints its own startup banner (version, kernel cmdline, log-file path)
+  to the console for the brief moment before it takes over the display —
+  separate from (and not covered by) the kernel/firmware quiet-boot settings
+  above. This script suppresses it via a custom tuigreet `--xsession-wrapper`
+  (`/usr/local/bin/xsession-wrapper`) that redirects Xorg's stderr; the same
+  content is still available in Xorg's own log file if you ever need it.
