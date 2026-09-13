@@ -62,6 +62,7 @@ section_packages() {
     rpi-eeprom \
     chromium \
     udisks2 udiskie \
+    pipewire pipewire-pulse pipewire-alsa wireplumber alsa-utils \
     curl ca-certificates
   # xauth: startx (invoked by tuigreet's xsession-wrapper below) shells
   # out to it to set up the X session's magic-cookie auth — not optional here.
@@ -96,7 +97,17 @@ section_packages() {
   # it auto-mounts a USB drive the moment it's plugged in. The Super+u
   # dmenu picker (see the `usbmenu` script in section_dotfiles) is there for
   # manual mount/unmount/eject on top of that, mainly for safely detaching a
-  # drive before pulling it.
+  # drive before pulling it. pipewire/pipewire-pulse/pipewire-alsa/
+  # wireplumber: the sound server — a bare Raspberry Pi OS Lite install has
+  # none at all (unlike the official Desktop image, which pulls this in via
+  # its desktop metapackage), so without it apps like chromium/vlc have no
+  # audio backend to talk to and just play silently, on HDMI or the 3.5mm
+  # jack alike. Debian's pipewire packages enable their own systemd --user
+  # socket units on install, so this needs no extra start-dwm wiring beyond
+  # a normal PAM-backed login (which greetd provides) setting up the user's
+  # systemd/D-Bus session. alsa-utils: aplay/amixer/alsamixer/speaker-test,
+  # for confirming ALSA sees your output device(s) independent of pipewire
+  # when troubleshooting.
 
   # Debian renames these two to avoid clashes; symlink the names you asked for.
   [ -e "$LOCAL_BIN/bat" ] || ln -s /usr/bin/batcat "$LOCAL_BIN/bat"
@@ -128,6 +139,24 @@ section_firmware() {
     sudo sed -i 's/^allowed_users=.*/allowed_users=anybody/' /etc/X11/Xwrapper.config
     grep -q '^needs_root_rights' /etc/X11/Xwrapper.config || \
       echo 'needs_root_rights=yes' | sudo tee -a /etc/X11/Xwrapper.config >/dev/null
+  fi
+
+  log "firmware: checking the analog audio jack (dtparam=audio=on) is enabled"
+  # dtparam=audio=on enables the Pi's onboard audio codec that feeds the
+  # 3.5mm jack (an aux speaker plugged in there needs this) — separate from
+  # HDMI audio to a monitor, which rides on vc4-kms-v3d above and needs no
+  # extra flag. Normally on by default on Raspberry Pi OS images, so this
+  # is just belt-and-suspenders in case it was ever turned off by hand.
+  if grep -q '^dtparam=audio=on$' "$cfg"; then
+    log "Analog audio jack already enabled in $cfg"
+  elif grep -q '^dtparam=audio=' "$cfg"; then
+    sudo sed -i 's/^dtparam=audio=.*/dtparam=audio=on/' "$cfg"
+    NEED_REBOOT=1
+    log "Enabled the analog audio jack in $cfg"
+  else
+    echo 'dtparam=audio=on' | sudo tee -a "$cfg" >/dev/null
+    NEED_REBOOT=1
+    log "Enabled the analog audio jack in $cfg"
   fi
 
   log "firmware: enabling PCIe Gen 3 for the NVMe M.2 HAT+"
@@ -1095,6 +1124,13 @@ section_summary() {
  drive last (0xf641) — normal day-to-day boot is from NVMe; insert a
  rescue SD card or USB stick to override it. Check both after reboot with
  'cat /boot/firmware/config.txt' and 'sudo rpi-eeprom-config'.
+
+ Audio: pipewire/wireplumber installed (a bare Lite install ships no sound
+ server at all, unlike the official Desktop image) and the analog jack
+ enabled (dtparam=audio=on) for an aux speaker, alongside HDMI audio to a
+ monitor. After rebooting, check output devices with 'wpctl status' or
+ 'aplay -l', and switch the default sink with 'wpctl set-default <id>' if
+ sound comes out the wrong one.
 
  Xorg: /etc/X11/xorg.conf.d/99-vc4.conf pins the vc4 display device as
  primary (fixes a Pi 5 quirk where two DRM devices exist and Xorg can pick

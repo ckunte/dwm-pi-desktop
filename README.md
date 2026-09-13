@@ -19,6 +19,9 @@ dwm/X11 "pocket desktop."
 - **NVMe (M.2 HAT+)**: enables PCIe Gen 3 on the external connector and sets
   the bootloader's `BOOT_ORDER` to SD → USB → NVMe, so a rescue SD card or USB
   stick overrides normal NVMe boot when present.
+- **Audio**: pipewire + wireplumber (a bare Lite install ships no sound
+  server at all) plus `dtparam=audio=on` for the 3.5mm jack, so both HDMI
+  and an aux speaker work the way they do on the official Desktop image.
 - **Xorg fix** for a Pi 5 quirk (two DRM devices, vc4 + v3d) that otherwise
   crashes X right after login with "Cannot run in framebuffer mode."
 - **Quiet boot** — kernel/systemd console spam and the firmware splash are
@@ -113,3 +116,11 @@ Idle lock is 10 minutes via `xset` + `xss-lock` — change the timeout in
   print on some boots. `systemd.show_status=0` in cmdline.txt silences that
   too, without affecting the emergency shell a genuine fsck failure or
   kernel panic still drops you into on the console.
+- No audio out of the box was the single biggest gap versus the official
+  Desktop image: a Lite install has no sound server at all (no pipewire, no
+  pulseaudio), so chromium/vlc silently have nothing to output to regardless
+  of HDMI or the 3.5mm jack. This script installs pipewire + wireplumber +
+  alsa-utils and makes sure `dtparam=audio=on` is set for the jack. After a
+  reboot, `wpctl status` lists sinks and `wpctl set-default <id>` switches
+  the default one; `aplay -l` / `speaker-test -c2` are lower-level ALSA
+  checks if pipewire itself looks like the problem.
