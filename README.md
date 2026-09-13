@@ -17,8 +17,12 @@ dwm/X11 "pocket desktop."
 - **USB auto-mount** via `udiskie`, plus a `Super+u` dmenu picker for manual
   mount/unmount/eject.
 - **NVMe (M.2 HAT+)**: enables PCIe Gen 3 on the external connector and sets
-  the bootloader's `BOOT_ORDER` to SD → USB → NVMe, so a rescue SD card or USB
-  stick overrides normal NVMe boot when present.
+  the bootloader's `BOOT_ORDER` to SD → NVMe → USB (matching raspi-config's
+  "B1" preset), so a rescue SD card overrides normal NVMe boot when present
+  — a USB stick won't, since NVMe is tried first whenever it's present.
+  Also sets `DISABLE_HDMI=1` so the bootloader's own pre-Linux "Configure
+  this Raspberry Pi" boot-progress screen doesn't show up — purely
+  cosmetic, no effect on which device actually boots.
 - **Audio**: pipewire + wireplumber (a bare Lite install ships no sound
   server at all). The Pi 5 has no analog 3.5mm jack — audio out is
   HDMI-only on this board; route an aux speaker through your monitor's own
@@ -59,6 +63,26 @@ touching anything, so it's safe to re-run. A failed build (e.g. from a
 hand-edited suckless `config.h`) warns and lets the rest of the script
 continue; fix it and re-run.
 
+## Upgrading
+
+A plain re-run only installs/configures what's missing — it never churns
+already-working software. To refresh things that are already installed:
+
+```sh
+./setup-pi-desktop.sh --upgrade
+```
+
+This resets each suckless tool's source to latest upstream and reapplies
+its patches (your hand-edited `config.h` is untouched — it's untracked by
+git, so it survives), upgrades `uv`-managed tools (`ruff`) and `typst` to
+their latest release, and runs vim-plug's `:PlugUpdate`. apt packages are
+already upgraded (`apt full-upgrade`) on every run, with or without this
+flag.
+
+If a suckless patch no longer applies cleanly against newer upstream, the
+build proceeds vanilla for that tool and warns — same safety net as a
+first-time install.
+
 ## Key bindings (MODKEY = Super)
 
 | Binding | Action |
@@ -93,14 +117,19 @@ Idle lock is 10 minutes via `xset` + `xss-lock` — change the timeout in
 
 ## Notes / gotchas
 
+- `DISABLE_HDMI=1` silences the bootloader's own boot-progress screen, but
+  that screen's "Press ESC to go to diagnostics screen" recovery option
+  relies on the same HDMI path — so it goes away too. If every configured
+  boot device (SD, NVMe, USB) ever fails, you get a blank screen instead
+  of that on-screen fallback, not a way to debug it visually.
 - The Pi 5's official M.2 HAT+ isn't certified for PCIe Gen 3. If the NVMe
   drive looks flaky after running this, drop `dtparam=pciex1_gen=3` to `=2`
   (or delete the line) in `/boot/firmware/config.txt` rather than assuming
   the drive is bad.
-- suckless sources under `~/src` are cloned once and never `git pull`ed on
-  a re-run, since patches are applied against a fresh clone and a pull would
-  conflict with those local changes. To rebuild against latest upstream,
-  delete the relevant `~/src/<tool>` directory yourself first.
+- suckless sources under `~/src` are cloned once and left alone on a plain
+  re-run — a `git pull` would conflict with the patches already applied to
+  them. Run `./setup-pi-desktop.sh --upgrade` to reset a tool's source to
+  latest upstream and reapply its patches instead.
 - Chromium (prebuilt, no vim keybindings) was chosen after surf and
   qutebrowser both ran into build/config friction on-device — a pragmatic
   choice, not a suckless-purity one.
