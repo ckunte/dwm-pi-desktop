@@ -63,7 +63,7 @@ section_packages() {
     chromium \
     udisks2 udiskie \
     curl ca-certificates
-  # xauth: startx (invoked by tuigreet's default xsession-wrapper below) shells
+  # xauth: startx (invoked by tuigreet's xsession-wrapper below) shells
   # out to it to set up the X session's magic-cookie auth — not optional here.
   # brightnessctl: handy if you're on an official Pi touchscreen/DSI display,
   # harmless otherwise. greetd/tuigreet: the login manager — prebuilt packages,
@@ -778,7 +778,7 @@ section_login_manager() {
   sudo tee /usr/local/bin/start-dwm >/dev/null <<'EOF'
 #!/bin/sh
 # Autostart wrapper for dwm, invoked via /usr/share/xsessions/dwm.desktop
-# (tuigreet's default xsession-wrapper runs this through `startx`).
+# (tuigreet's xsession-wrapper, set up below, runs this through `startx`).
 # dwm itself doesn't source anything like .xinitrc, so this is where the
 # status bar, wallpaper, and idle-lock get started before dwm takes over.
 #
@@ -817,14 +817,32 @@ Exec=/usr/local/bin/start-dwm
 Type=Application
 EOF
 
+  # Xorg prints its startup banner (server/protocol version, kernel
+  # cmdline, log-file path, etc.) to stderr before it takes over the VT —
+  # since that's the same tty tuigreet is drawing on, the banner flashes
+  # on screen for the ~1s between Xorg starting and it grabbing the
+  # display, right after login. Nothing in section_quiet_boot touches
+  # this: that silences the kernel/systemd/firmware boot sequence, not
+  # Xorg's own startup log. Wrapping the session command ourselves and
+  # redirecting Xorg's stderr away is the only way to suppress it —
+  # nothing is lost, since the banner's own "Log file:" line names where
+  # Xorg writes the identical text regardless of this redirect.
+  sudo tee /usr/local/bin/xsession-wrapper >/dev/null <<'EOF'
+#!/bin/sh
+# tuigreet's --xsession-wrapper, below: identical to its built-in default
+# ("startx /usr/bin/env"), just with Xorg's own console output silenced.
+exec startx /usr/bin/env "$@" >/dev/null 2>&1
+EOF
+  sudo chmod +x /usr/local/bin/xsession-wrapper
+
   # dpkg check, not `command -v` — greetd's binary lives in /usr/bin but a
   # daemon like this isn't something you'd normally expect on a user's PATH
   # anyway; dpkg is the correct "did the package actually install" check.
   if dpkg -s greetd >/dev/null 2>&1 && dpkg -s tuigreet >/dev/null 2>&1; then
     # tuigreet auto-discovers dwm.desktop from /usr/share/xsessions (its
-    # built-in default search path — no --xsessions flag needed) and wraps
-    # it with its own default xsession-wrapper (`startx /usr/bin/env`), so
-    # this config needs nothing dwm-specific at all. --remember (username)
+    # built-in default search path — no --xsessions flag needed), so this
+    # config needs nothing dwm-specific beyond the xsession-wrapper above
+    # (see its own comment for why that's there). --remember (username)
     # and --remember-session are just convenience for a single-user, single-
     # session device.
     # Debian's greetd package does NOT create the "greeter" system user its
@@ -849,7 +867,7 @@ EOF
 vt = 1
 
 [default_session]
-command = "tuigreet --remember --remember-session --time"
+command = "tuigreet --remember --remember-session --time --xsession-wrapper /usr/local/bin/xsession-wrapper"
 user = "greeter"
 EOF
 
@@ -1064,7 +1082,10 @@ section_summary() {
  primary (fixes a Pi 5 quirk where two DRM devices exist and Xorg can pick
  the wrong one, killing the session with "Cannot run in framebuffer mode"
  right after login). Already applied — no reboot needed for this one, just
- log in normally.
+ log in normally. Xorg's own startup banner (version/log-file info it
+ prints before taking over the display) is also suppressed via a custom
+ tuigreet --xsession-wrapper (/usr/local/bin/xsession-wrapper) — it's still
+ all in Xorg's own log file, just not flashed on screen at login.
 
  Quiet boot: kernel/systemd console output and the firmware rainbow splash
  are suppressed (cmdline.txt + config.txt) — tuigreet should be the first
