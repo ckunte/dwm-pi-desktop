@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=dwm
+Comment=Dynamic window manager (slstatus + xss-lock via start-dwm)
+Exec=/usr/local/bin/start-dwm
+Type=Application

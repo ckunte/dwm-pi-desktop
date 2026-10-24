@@ -1,0 +1,4 @@
+#!/bin/sh
+# dwm keybind (Super+v). Opens ~/Pictures in nsxiv thumbnail mode (t to
+# toggle, hjkl/arrows to navigate, Return for full size), or pass a path.
+exec nsxiv -t "${1:-$HOME/Pictures}"

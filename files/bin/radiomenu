@@ -1,0 +1,26 @@
+#!/bin/sh
+# dwm keybind (Super+r): dmenu-driven internet radio station picker.
+# Reads ~/.config/radiomenu/stations ("Name|URL" per line, edit freely --
+# only created once, never overwritten). Only one station plays at a
+# time: picking one stops whatever cvlc is already running.
+set -eu
+STATIONS="$HOME/.config/radiomenu/stations"
+
+if [ ! -s "$STATIONS" ]; then
+	printf 'No stations configured (~/.config/radiomenu/stations)' | dmenu -p "Radio:"
+	exit 0
+fi
+
+choice=$(cut -d'|' -f1 "$STATIONS" | { cat; echo Stop; } | dmenu -i -p "Radio:")
+[ -z "$choice" ] && exit 0
+
+# cvlc is a symlink to vlc on some setups, a wrapper script on others --
+# either way its own exec'd process shows up as one of these two names.
+pkill -x vlc >/dev/null 2>&1 || true
+pkill -x cvlc >/dev/null 2>&1 || true
+[ "$choice" = "Stop" ] && exit 0
+
+url=$(awk -F'|' -v name="$choice" '$1==name{print $2; exit}' "$STATIONS")
+[ -z "$url" ] && exit 0
+
+cvlc "$url" >/dev/null 2>&1 &

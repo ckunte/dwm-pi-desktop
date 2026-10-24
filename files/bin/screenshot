@@ -1,0 +1,14 @@
+#!/bin/sh
+# dwm keybinds: Print = full screen, Super+Print = select region/window.
+# Saves under ~/Pictures/Screenshots and copies to the clipboard.
+DIR="$HOME/Pictures/Screenshots"
+mkdir -p "$DIR"
+FILE="$DIR/$(date +%Y-%m-%d-%H%M%S).png"
+
+if [ "$1" = "select" ]; then
+	scrot -s "$FILE" || exit 0
+else
+	scrot "$FILE"
+fi
+
+[ -f "$FILE" ] && xclip -selection clipboard -t image/png -i "$FILE"

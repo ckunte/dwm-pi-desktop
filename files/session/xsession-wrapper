@@ -1,0 +1,6 @@
+#!/bin/sh
+# tuigreet --xsession-wrapper: same as its default ("startx /usr/bin/env")
+# but Xorg's startup banner goes to a log instead of flashing on the console.
+# Check ~/.cache/xsession.log if X fails to start.
+mkdir -p "$HOME/.cache"
+exec startx /usr/bin/env "$@" >"$HOME/.cache/xsession.log" 2>&1

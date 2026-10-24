@@ -1,0 +1,3 @@
+#!/bin/sh
+# macOS-style pbcopy: stdin -> X clipboard
+exec xclip -selection clipboard -in

@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=VLC (no GUI)
+Comment=Play audio and video with cvlc, closing when done
+Exec=cvlc --play-and-exit %F
+MimeType=video/mp4;video/x-matroska;video/webm;video/quicktime;video/x-msvideo;video/mpeg;audio/mpeg;audio/flac;audio/ogg;audio/x-wav;audio/mp4;audio/aac;
+NoDisplay=true

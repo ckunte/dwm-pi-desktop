@@ -1,0 +1,25 @@
+#!/bin/sh
+# Session wrapper launched via /usr/share/xsessions/dwm.desktop. dwm doesn't
+# read .xinitrc, so the bar, wallpaper, USB automount and idle lock start here.
+# Output goes to ~/.cache/start-dwm.log (overwritten each login).
+mkdir -p "$HOME/.cache"
+exec >"$HOME/.cache/start-dwm.log" 2>&1
+
+# greetd doesn't source shell rc files.
+export PATH="$HOME/.local/bin:$PATH"
+
+dbus-update-activation-environment --systemd DISPLAY XAUTHORITY || true
+
+for f in "$HOME"/.config/wallpaper.jpg "$HOME"/.config/wallpaper.jpeg "$HOME"/.config/wallpaper.png; do
+	if [ -f "$f" ]; then
+		xwallpaper --zoom "$f" &
+		break
+	fi
+done
+
+slstatus &
+udiskie --no-tray &
+xset s 600
+# slock doesn't fork or support --transfer-sleep-lock, so plain xss-lock.
+xss-lock -- slock &
+exec dwm

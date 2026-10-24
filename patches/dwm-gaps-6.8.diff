@@ -1,0 +1,59 @@
+--- a/dwm.c
++++ b/dwm.c
+@@ -1149,7 +1149,7 @@
+ 	if (n > 0) /* override layout symbol */
+ 		snprintf(m->ltsymbol, sizeof m->ltsymbol, "[%d]", n);
+ 	for (c = nexttiled(m->clients); c; c = nexttiled(c->next))
+-		resize(c, m->wx, m->wy, m->ww - 2 * c->bw, m->wh - 2 * c->bw, 0);
++		resize(c, m->wx + gappout, m->wy + gappout, m->ww - 2 * gappout - 2 * c->bw, m->wh - 2 * gappout - 2 * c->bw, 0);
+ }
+ 
+ void
+@@ -1730,28 +1730,35 @@
+ void
+ tile(Monitor *m)
+ {
+-	unsigned int i, n, h, mw, my, ty;
++	unsigned int i, n;
++	int h, r, mw, my, ty, x0, y0, W, H;
+ 	Client *c;
+ 
+ 	for (n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++);
+ 	if (n == 0)
+ 		return;
+ 
+-	if (n > m->nmaster)
+-		mw = m->nmaster ? m->ww * m->mfact : 0;
++	x0 = m->wx + gappout;
++	y0 = m->wy + gappout;
++	W = m->ww - 2 * gappout;
++	H = m->wh - 2 * gappout;
++	if (n > m->nmaster)
++		mw = m->nmaster ? (W + gappin) * m->mfact : 0;
+ 	else
+-		mw = m->ww;
++		mw = W;
+ 	for (i = my = ty = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
+ 		if (i < m->nmaster) {
+-			h = (m->wh - my) / (MIN(n, m->nmaster) - i);
+-			resize(c, m->wx, m->wy + my, mw - (2*c->bw), h - (2*c->bw), 0);
+-			if (my + HEIGHT(c) < m->wh)
+-				my += HEIGHT(c);
++			r = MIN(n, m->nmaster) - i;
++			h = (H - my - gappin * (r - 1)) / r;
++			resize(c, x0, y0 + my, mw - (n > m->nmaster ? gappin : 0) - (2*c->bw), h - (2*c->bw), 0);
++			if (my + HEIGHT(c) + gappin < H)
++				my += HEIGHT(c) + gappin;
+ 		} else {
+-			h = (m->wh - ty) / (n - i);
+-			resize(c, m->wx + mw, m->wy + ty, m->ww - mw - (2*c->bw), h - (2*c->bw), 0);
+-			if (ty + HEIGHT(c) < m->wh)
+-				ty += HEIGHT(c);
++			r = n - i;
++			h = (H - ty - gappin * (r - 1)) / r;
++			resize(c, x0 + mw, y0 + ty, W - mw - (2*c->bw), h - (2*c->bw), 0);
++			if (ty + HEIGHT(c) + gappin < H)
++				ty += HEIGHT(c) + gappin;
+ 		}
+ }
+ 

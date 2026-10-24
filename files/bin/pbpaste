@@ -1,0 +1,3 @@
+#!/bin/sh
+# macOS-style pbpaste: X clipboard -> stdout
+exec xclip -selection clipboard -out

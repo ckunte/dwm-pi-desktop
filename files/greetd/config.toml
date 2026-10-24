@@ -1,0 +1,6 @@
+[terminal]
+vt = 1
+
+[default_session]
+command = "tuigreet --remember --remember-session --time --xsession-wrapper /usr/local/bin/xsession-wrapper"
+user = "@GREETER@"

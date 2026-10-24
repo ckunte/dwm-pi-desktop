@@ -1,0 +1,29 @@
+# Prompt in the style of Omarchy: directory, git branch and status, then a
+# cyan ❯ (✗ after a failed command). Edit freely; install.sh only creates
+# this file once.
+add_newline = true
+command_timeout = 200
+format = """
+$directory$git_branch$git_status$character"""
+
+[character]
+success_symbol = "[❯](cyan)"
+error_symbol = "[✗](cyan)"
+
+[directory]
+truncation_length = 2
+truncation_symbol = "…/"
+style = "cyan"
+repo_root_style = "cyan"
+repo_root_format = "[$before_root_path]($before_repo_root_style)[$repo_root]($repo_root_style)[$path]($style)[$read_only]($read_only_style) "
+
+[git_branch]
+format = "[$branch]($style) "
+style = "italic cyan"
+
+[git_status]
+format = "[$all_status$ahead_behind]($style) "
+style = "cyan"
+ahead = "⇡"
+behind = "⇣"
+diverged = "⇕"
