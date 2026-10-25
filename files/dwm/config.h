@@ -1,8 +1,8 @@
 /* appearance */
-static const unsigned int borderpx  = 1;
+static const unsigned int borderpx  = 2;
 static const unsigned int snap      = 32;
-static const int gappin            = 2;        /* gap between tiles (gaps patch) */
-static const int gappout           = 4;        /* gap between tiles and the screen edge (gaps patch) */
+static const int gappin            = 3;        /* gap between tiles (gaps patch) */
+static const int gappout           = 6;        /* gap between tiles and the screen edge (gaps patch) */
 static const int showbar            = 1;
 static const int topbar             = 1;
 static const char *fonts[]          = { "Cascadia Code:size=13:antialias=true:autohint=true" };

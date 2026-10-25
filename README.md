@@ -9,12 +9,14 @@ kept wherever they work.
 - **dwm 6.8, dmenu 5.4, st 0.9.3, slock 1.7, slstatus 1.1** built from pinned
   suckless release tags. Patches (vendored in `patches/`): dwm pertag,
   fullscreen and gaps, st scrollback. The gaps patch is our own, small:
-  `gappin` (2 px, between tiles) and `gappout` (4 px, around the screen edge)
+  `gappin` (3 px, between tiles) and `gappout` (6 px, around the screen edge)
   in `files/dwm/config.h`, applied in tile and monocle layouts.
 - **greetd + tuigreet** login, starting dwm through `/usr/local/bin/start-dwm`.
 - **chromium** (`Super+b`), **zathura** (PDF), **nsxiv** (`Super+v`), **vlc-bin**
   internet radio (`Super+r`), **scrot** screenshots, **udiskie** USB automount
   plus a `Super+u` mount/unmount picker, **pipewire** audio.
+- **Bar:** weather (icon and temperature from wttr.in, location by IP, cached
+  15 minutes by `~/.local/bin/weather`) followed by the date and time.
 - **Idle lock** after 10 minutes (`xset` + `xss-lock` + slock).
 - **Tools:** fish (login shell, with an Omarchy-style starship prompt from
   `files/starship/starship.toml`), bat, fd, ripgrep, rsync, entr, fzf, pass, uv, typst, yazi (`y` in fish cds to where you quit),
