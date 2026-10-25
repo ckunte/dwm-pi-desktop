@@ -5,7 +5,13 @@ static const int gappin            = 3;        /* gap between tiles (gaps patch)
 static const int gappout           = 6;        /* gap between tiles and the screen edge (gaps patch) */
 static const int showbar            = 1;
 static const int topbar             = 1;
-static const char *fonts[]          = { "Cascadia Code:size=13:antialias=true:autohint=true" };
+/* Symbols2 then Color Emoji are named explicitly so weather icons resolve
+ * to a known font instead of whatever fontconfig picks as a fallback. */
+static const char *fonts[]          = {
+	"Cascadia Code:size=13:antialias=true:autohint=true",
+	"Noto Sans Symbols2:size=13",
+	"Noto Color Emoji:size=13",
+};
 static const char dmenufont[]       = "Cascadia Code:size=13:antialias=true:autohint=true";
 static const char col_gray1[]       = "#222222";
 static const char col_gray2[]       = "#444444";
