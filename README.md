@@ -1,8 +1,8 @@
 # dwm-pi-desktop
 
 Turns a fresh Raspberry Pi OS Lite (64-bit, Trixie) install on a Pi 5
-(NVMe via the M.2 HAT+) into a minimal dwm/X11 desktop. Pi OS defaults are
-kept wherever they work.
+(NVMe via the M.2 HAT+) or a Pi Zero 2 W into a minimal dwm/X11 desktop. The
+installer detects the board. Pi OS defaults are kept wherever they work.
 
 ## What you get
 
@@ -12,7 +12,7 @@ kept wherever they work.
   `gappin` (3 px, between tiles) and `gappout` (6 px, around the screen edge)
   in `files/dwm/config.h`, applied in tile and monocle layouts.
 - **greetd + tuigreet** login, starting dwm through `/usr/local/bin/start-dwm`.
-- **chromium** (`Super+b`), **zathura** (PDF), **nsxiv** (`Super+v`), **vlc-bin**
+- **browser** (`Super+b`; chromium on Pi 5, NetSurf on the Zero 2 W), **zathura** (PDF), **nsxiv** (`Super+v`), **vlc-bin**
   internet radio (`Super+r`), **scrot** screenshots, **udiskie** USB automount
   plus a `Super+u` mount/unmount picker, **pipewire** audio.
 - **Bar:** weather (icon and temperature from wttr.in, location by IP, cached
@@ -22,8 +22,21 @@ kept wherever they work.
   `files/starship/starship.toml`), bat, fd, ripgrep, rsync, entr, fzf, pass, uv, typst, yazi (`y` in fish cds to where you quit),
   `pbcopy`/`pbpaste`.
 - **ufw:** deny incoming; SSH (22/tcp) and mDNS (5353/udp, for `hostname.local`) allowed.
-- **Firmware:** PCIe x1 at Gen 3 for NVMe, quiet boot. The bootloader/EEPROM
-  is left alone.
+- **Firmware:** quiet boot. Pi 5 only: PCIe x1 at Gen 3 for NVMe. The
+  bootloader/EEPROM is left alone.
+- **Pi Zero 2 W only:** zram swap (skipped if Pi OS's `rpi-swap` is already
+  there) and Wi-Fi power save off.
+
+## Pi Zero 2 W notes
+
+- Flash Pi OS Lite **64-bit** (Trixie) to a microSD (use a good A1/A2 card);
+  set Wi-Fi and SSH in Raspberry Pi Imager.
+- 512 MB RAM: expect the first run to take a while (apt upgrade plus compiling
+  the suckless tools on 4 slow cores). dwm, st and the bar are fine.
+  The browser is NetSurf (tiny, but minimal JavaScript, so no web apps).
+  To use Chromium instead, install it and edit `~/.local/bin/browser`.
+- Video: mini-HDMI (needs a cable/adapter). Audio: HDMI or USB; no analog jack.
+- There is no Ethernet or USB 3; udiskie works through a USB OTG adapter.
 
 ## Layout
 
@@ -61,7 +74,7 @@ safe: a suckless tool only rebuilds when its tag, patches, or
 |---|---|
 | `Super+Shift+Return` | st |
 | `Super+p` | dmenu_run |
-| `Super+b` | chromium |
+| `Super+b` | browser (chromium / NetSurf) |
 | `Super+Ctrl+l` | lock |
 | `Super+Shift+f` | fullscreen |
 | `Super+v` | nsxiv thumbnails of `~/Pictures` |

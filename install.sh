@@ -3,8 +3,10 @@
 # install.sh
 #
 # Turns a fresh Raspberry Pi OS Lite (64-bit, Trixie) install on a Pi 5
-# (NVMe via the M.2 HAT+) into a minimal dwm/X11 desktop. Pi OS defaults are
-# kept wherever they work; see README.md for what is and isn't changed.
+# (NVMe via the M.2 HAT+) or a Pi Zero 2 W (512 MB, microSD) into a minimal
+# dwm/X11 desktop. The board is detected from /proc/device-tree/model. Pi OS
+# defaults are kept wherever they work; see README.md for what is and isn't
+# changed.
 #
 # Run as your normal user (not root) -- it calls sudo where needed. Safe to
 # re-run: suckless tools only rebuild when their pinned version, patches or
@@ -52,9 +54,14 @@ section_preflight() {
   . /etc/os-release
   [ "${VERSION_CODENAME:-}" = "trixie" ] || warn "Expected Debian trixie, found '${VERSION_CODENAME:-unknown}'."
   [ "$(dpkg --print-architecture)" = "arm64" ] || warn "Expected arm64, found $(dpkg --print-architecture)."
-  if [ -r /proc/device-tree/model ] && ! grep -q 'Raspberry Pi 5' /proc/device-tree/model; then
-    warn "This isn't a Raspberry Pi 5; the PCIe/NVMe settings are Pi 5-specific."
+  BOARD=other
+  if [ -r /proc/device-tree/model ]; then
+    if grep -q 'Raspberry Pi 5' /proc/device-tree/model; then BOARD=pi5
+    elif grep -q 'Raspberry Pi Zero 2' /proc/device-tree/model; then BOARD=zero2w
+    fi
   fi
+  [ "$BOARD" != other ] || warn "Unrecognised board; treating it like a Pi Zero 2 W (no PCIe/NVMe settings)."
+  log "board: $BOARD"
 
   curl -fsI https://git.suckless.org >/dev/null || die "Can't reach git.suckless.org -- check the network."
 
@@ -84,7 +91,7 @@ section_packages() {
     # login and session
     greetd tuigreet xss-lock xwallpaper dbus-user-session dbus-x11 polkitd
     # apps
-    chromium zathura zathura-pdf-poppler nsxiv xclip scrot xdg-utils
+    zathura zathura-pdf-poppler nsxiv xclip scrot xdg-utils
     vlc-bin vlc-plugin-base
     # audio and USB
     pipewire pipewire-pulse wireplumber udisks2 udiskie
@@ -94,6 +101,7 @@ section_packages() {
     fish bat fd-find ripgrep rsync entr fzf pass gnupg pinentry-curses
     ufw curl ca-certificates unzip file
   )
+  if [ "$BOARD" = pi5 ]; then pkgs+=(chromium); else pkgs+=(netsurf-gtk); fi
   [ "$XORG_LEGACY" -eq 1 ] && pkgs+=(xserver-xorg-legacy)
   sudo "${apt_env[@]}" apt-get install -y --no-install-recommends "${pkgs[@]}"
 
@@ -134,7 +142,7 @@ section_firmware() {
   CMDLINE_TXT="$boot/cmdline.txt"
   [ -f "$CONFIG_TXT" ] && [ -f "$CMDLINE_TXT" ] || die "Couldn't find config.txt / cmdline.txt under $boot."
 
-  log "firmware: PCIe Gen 3 for NVMe, quiet boot"
+  log "firmware: quiet boot${BOARD:+ ($BOARD)}"
   grep -q '^dtoverlay=vc4-kms-v3d' "$CONFIG_TXT" || warn "dtoverlay=vc4-kms-v3d is missing from $CONFIG_TXT; Pi OS enables it by default. X needs it."
 
   # Our lines must land in [all]; a trailing [cm5]/[pi4] section would scope them wrongly.
@@ -142,15 +150,38 @@ section_firmware() {
   if [ -n "$last" ] && [ "$last" != "[all]" ]; then
     printf '\n[all]\n' | sudo tee -a "$CONFIG_TXT" >/dev/null
   fi
-  cfg_set 'dtparam=pciex1' 'dtparam=pciex1$'
-  # The M.2 HAT+ isn't certified for Gen 3; if the drive looks flaky, set =2.
-  cfg_set 'dtparam=pciex1_gen=3' 'dtparam=pciex1_gen='
+  if [ "$BOARD" = pi5 ]; then
+    cfg_set 'dtparam=pciex1' 'dtparam=pciex1$'
+    # The M.2 HAT+ isn't certified for Gen 3; if the drive looks flaky, set =2.
+    cfg_set 'dtparam=pciex1_gen=3' 'dtparam=pciex1_gen='
+  fi
   cfg_set 'disable_splash=1' 'disable_splash='
 
   # console=tty1 stays on purpose: a real boot failure still shows on screen.
   for tok in quiet loglevel=0 vt.global_cursor_default=0 logo.nologo systemd.show_status=0; do
     cmdline_add "$tok"
   done
+}
+
+# ---------------------------------------------------------------------------
+# Pi Zero 2 W only: 512 MB of RAM needs compressed swap, and Wi-Fi power
+# saving makes SSH laggy.
+section_zero() {
+  [ "$BOARD" != pi5 ] || return 0
+  log "zero 2 w: zram swap, Wi-Fi power save off"
+
+  if dpkg -s rpi-swap >/dev/null 2>&1; then
+    echo "rpi-swap present (zram swap is Pi OS's default); leaving it alone."
+  else
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends systemd-zram-generator
+    printf '[zram0]\nzram-size = ram\ncompression-algorithm = zstd\n' | sudo tee /etc/systemd/zram-generator.conf >/dev/null
+    sudo systemctl daemon-reload
+    sudo systemctl start systemd-zram-setup@zram0.service 2>/dev/null || true
+  fi
+
+  if systemctl is-active --quiet NetworkManager; then
+    printf '[connection]\nwifi.powersave = 2\n' | sudo tee /etc/NetworkManager/conf.d/wifi-powersave-off.conf >/dev/null
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -358,7 +389,7 @@ section_summary() {
   cat <<'EOF'
 
 Done. Keys (MODKEY = Super):
-  Shift+Return st | p dmenu | b chromium | Ctrl+l lock | Shift+f fullscreen
+  Shift+Return st | p dmenu | b browser | Ctrl+l lock | Shift+f fullscreen
   v nsxiv ~/Pictures | u USB mount/unmount | r radio | w close | Shift+q quit dwm
   Print / Super+Print screenshot | F10 F11 F12 mute / vol- / vol+
 
@@ -381,6 +412,7 @@ main() {
   section_preflight
   section_packages
   section_firmware
+  section_zero
   section_xorg
   section_suckless
   section_user_files

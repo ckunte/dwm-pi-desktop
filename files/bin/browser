@@ -1,0 +1,7 @@
+#!/bin/sh
+# Super+b target. Chromium on a Pi 5; NetSurf on smaller boards (512 MB RAM).
+url=https://lite.cnn.com/en
+if grep -q 'Raspberry Pi 5' /proc/device-tree/model 2>/dev/null; then
+	exec chromium --no-first-run --no-default-browser-check "${1:-$url}"
+fi
+exec netsurf-gtk "${1:-$url}"
